@@ -66,6 +66,7 @@ impl Dialect for TrinoDialect {
     }
 }
 
+#[derive(Clone)]
 pub struct TrinoSource {
     client: Arc<Client>,
     rt: Arc<Runtime>,

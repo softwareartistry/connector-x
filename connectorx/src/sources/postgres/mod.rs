@@ -39,6 +39,7 @@ use std::marker::PhantomData;
 use uuid::Uuid;
 
 /// Protocol - Binary based bulk load
+#[derive(Clone)]
 pub enum BinaryProtocol {}
 
 /// Protocol - CSV based bulk load
@@ -122,6 +123,7 @@ where
     }
 }
 
+#[derive(Clone)]
 pub struct PostgresSource<P, C>
 where
     C: MakeTlsConnect<Socket> + Clone + 'static + Sync + Send,
