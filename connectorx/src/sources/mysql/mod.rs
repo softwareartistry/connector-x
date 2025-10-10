@@ -35,6 +35,7 @@ pub use typesystem::MySQLTypeSystem;
 
 type MysqlConn = PooledConnection<MySqlConnectionManager>;
 
+#[derive(Clone)]
 pub enum BinaryProtocol {}
 pub enum TextProtocol {}
 
@@ -44,6 +45,7 @@ fn get_total_rows(conn: &mut MysqlConn, query: &CXQuery<String>) -> usize {
         .ok_or_else(|| anyhow!("mysql failed to get the count of query: {}", query))?
 }
 
+#[derive(Clone)]
 pub struct MySQLSource<P> {
     pool: Pool<MySqlConnectionManager>,
     origin_query: Option<String>,

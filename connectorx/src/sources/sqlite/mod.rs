@@ -25,6 +25,7 @@ use std::convert::TryFrom;
 pub use typesystem::SQLiteTypeSystem;
 use urlencoding::decode;
 
+#[derive(Clone)]
 pub struct SQLiteSource {
     pool: Pool<SqliteConnectionManager>,
     origin_query: Option<String>,

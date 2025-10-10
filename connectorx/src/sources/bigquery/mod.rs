@@ -45,6 +45,7 @@ impl Dialect for BigQueryDialect {
     }
 }
 
+#[derive(Clone)]
 pub struct BigQuerySource {
     rt: Arc<Runtime>,
     client: Arc<Client>,

@@ -33,6 +33,8 @@ use urlencoding::decode;
 use uuid_old::Uuid;
 
 type Conn<'a> = PooledConnection<'a, ConnectionManager>;
+
+#[derive(Clone)]
 pub struct MsSQLSource {
     rt: Arc<Runtime>,
     pool: Pool<ConnectionManager>,

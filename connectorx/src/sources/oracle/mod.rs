@@ -46,6 +46,7 @@ impl Dialect for OracleDialect {
     }
 }
 
+#[derive(Clone)]
 pub struct OracleSource {
     pool: Pool<OracleManager>,
     origin_query: Option<String>,
