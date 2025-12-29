@@ -146,6 +146,8 @@ pub mod typesystem;
 mod macros;
 #[cfg(feature = "dst_arrow")]
 pub mod arrow_batch_iter;
+#[cfg(feature = "dst_arrow")]
+pub mod raw_arrow_batch_iter;
 pub mod constants;
 pub mod data_order;
 pub mod destinations;
@@ -169,6 +171,8 @@ pub mod utils;
 pub mod prelude {
     #[cfg(feature = "dst_arrow")]
     pub use crate::arrow_batch_iter::{set_global_num_thread, RecordBatchIterator};
+    #[cfg(all(feature = "dst_arrow", feature = "src_oracle"))]
+    pub use crate::raw_arrow_batch_iter::{OracleRawRecordBatchIterator, RawArrowError};
     pub use crate::data_order::{coordinate, DataOrder};
     #[cfg(feature = "dst_arrow")]
     pub use crate::destinations::arrow::{ArrowDestination, ArrowPartitionWriter, ArrowTypeSystem};
@@ -197,14 +201,14 @@ pub mod prelude {
     #[cfg(feature = "src_mysql")]
     pub use crate::sources::mysql::MySQLSource;
     #[cfg(feature = "src_oracle")]
-    pub use crate::sources::oracle::OracleSource;
+    pub use crate::sources::oracle::{OracleRawSourceParser, OracleSource, OracleTypeSystem};
     #[cfg(feature = "src_postgres")]
     pub use crate::sources::postgres::PostgresSource;
     #[cfg(feature = "src_sqlite")]
     pub use crate::sources::sqlite::SQLiteSource;
     #[cfg(feature = "src_trino")]
     pub use crate::sources::trino::TrinoSource;
-    pub use crate::sources::{PartitionParser, Produce, Source, SourcePartition};
+    pub use crate::sources::{PartitionParser, Produce, RawSource, Source, SourcePartition};
     pub use crate::sql::CXQuery;
     pub use crate::transports::*;
     pub use crate::typesystem::{
