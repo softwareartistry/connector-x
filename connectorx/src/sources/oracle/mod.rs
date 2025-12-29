@@ -9,7 +9,7 @@ use crate::constants::{DB_BUFFER_SIZE, ORACLE_ARRAY_SIZE};
 use crate::{
     data_order::DataOrder,
     errors::ConnectorXError,
-    sources::{PartitionParser, Produce, Source, SourcePartition},
+    sources::{PartitionParser, Produce, Source, SourcePartition, RawSource},
     sql::{count_query, limit1_query_oracle, CXQuery},
     utils::DummyBox,
 };
@@ -200,6 +200,148 @@ where
         ret
     }
 }
+
+impl RawSource for OracleSource {
+    type Parser = OracleRawSourceParser;
+
+    fn execute_raw_query(&mut self, query: &str) 
+        -> Result<(Self::Parser, Vec<String>, Vec<OracleTypeSystem>), OracleSourceError> 
+    {
+        let conn = self.pool.get()?;
+        let stmt = conn.statement(query).build()?;
+        let mut boxed_stmt = Box::new(stmt);
+        boxed_stmt.execute(&[])?;
+    
+        let (rows, names, types) = if let Some(mut cursor) = boxed_stmt.implicit_result()? {
+            let result_set = cursor.query()?;
+            
+            // Schema
+            let col_info: Vec<_> = result_set.column_info()
+                    .iter()
+                    .map(|c| (c.name().to_string(), OracleTypeSystem::from(c.oracle_type())))
+                    .collect();
+            let (n, t): (Vec<_>, Vec<_>) = col_info.into_iter().unzip();
+            
+            // Data (rows, names, types)
+            let r = result_set.collect::<Result<Vec<_>, _>>()?;
+            (r, n, t)
+        } else {
+            return Err(OracleSourceError::ConnectorXError(
+                ConnectorXError::Other(anyhow::anyhow!("No implicit result"))
+            ));
+        };
+
+        // Create Parser
+        let ncols = names.len();
+        let iter = rows.into_iter().map(Ok);
+        let parser = OracleRawSourceParser::new(Box::new(iter), ncols);
+
+        Ok((parser, names, types))
+    }
+}
+
+pub struct OracleRawSourceParser {
+    iter: Box<dyn Iterator<Item = oracle::Result<Row>> + Send>, 
+    rowbuf: Vec<Row>,
+    ncols: usize,
+    current_col: usize,
+    current_row: usize,
+    is_finished: bool,
+}
+
+unsafe impl Send for OracleRawSourceParser {}
+unsafe impl Sync for OracleRawSourceParser {}
+
+impl OracleRawSourceParser {
+    // Accept any iterator
+    pub fn new(iter: impl Iterator<Item = oracle::Result<Row>> + Send + 'static, ncols: usize) -> Self {
+        Self {
+            iter: Box::new(iter),
+            rowbuf: Vec::with_capacity(1024),
+            ncols,
+            current_col: 0,
+            current_row: 0,
+            is_finished: false,
+        }
+    }
+
+    #[throws(OracleSourceError)]
+    fn next_loc(&mut self) -> (usize, usize) {
+        let ret = (self.current_row, self.current_col);
+        self.current_row += (self.current_col + 1) / self.ncols;
+        self.current_col = (self.current_col + 1) % self.ncols;
+        ret
+    }
+}
+
+impl<'a> PartitionParser<'a> for OracleRawSourceParser {
+    type TypeSystem = OracleTypeSystem;
+    type Error = OracleSourceError;
+
+    fn fetch_next(&mut self) -> Result<(usize, bool), Self::Error> {
+        if self.is_finished && self.rowbuf.is_empty() {
+            return Ok((0, true));
+        }
+        
+        // Clear buffer
+        self.rowbuf.clear();
+        self.current_row = 0;
+        self.current_col = 0;
+
+        let batch_size = 1024;
+
+        // Fetch batch
+        for _ in 0..batch_size {
+            match self.iter.next() {
+                Some(Ok(row)) => self.rowbuf.push(row),
+                Some(Err(e)) => return Err(OracleSourceError::from(e)),
+                None => {
+                    self.is_finished = true;
+                    break;
+                }
+            }
+        }
+        Ok((self.rowbuf.len(), self.is_finished))
+    }
+}
+
+macro_rules! impl_produce_raw {
+    ($($t: ty,)+) => {
+        $(
+            impl<'r> Produce<'r, $t> for OracleRawSourceParser {
+                type Error = OracleSourceError;
+
+                #[throws(OracleSourceError)]
+                fn produce(&'r mut self) -> $t {
+                    let (ridx, cidx) = self.next_loc()?;
+                    let res = self.rowbuf[ridx].get(cidx)?;
+                    res
+                }
+            }
+
+            impl<'r> Produce<'r, Option<$t>> for OracleRawSourceParser {
+                type Error = OracleSourceError;
+
+                #[throws(OracleSourceError)]
+                fn produce(&'r mut self) -> Option<$t> {
+                    let (ridx, cidx) = self.next_loc()?;
+                    let res = self.rowbuf[ridx].get(cidx)?;
+                    res
+                }
+            }
+        )+
+    };
+}
+
+impl_produce_raw!(
+    i64,
+    f64,
+    String,
+    NaiveDate,
+    NaiveDateTime,
+    DateTime<Utc>,
+    Vec<u8>,
+);
 
 pub struct OracleSourcePartition {
     conn: OracleConn,

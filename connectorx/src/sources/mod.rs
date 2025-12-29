@@ -56,6 +56,14 @@ pub trait Source {
     fn partition(self) -> Result<Vec<Self::Partition>, Self::Error>;
 }
 
+pub trait RawSource: Source {
+    type Parser: PartitionParser<'static, TypeSystem = Self::TypeSystem, Error = Self::Error> + Send + Sync;
+
+    // Return (Parser, Names, Types)
+    fn execute_raw_query(&mut self, query: &str) 
+        -> Result<(Self::Parser, Vec<String>, Vec<Self::TypeSystem>), Self::Error>;
+}
+
 /// In general, a `DataSource` abstracts the data source as a stream, which can produce
 /// a sequence of values of variate types by repetitively calling the function `produce`.
 pub trait SourcePartition {
