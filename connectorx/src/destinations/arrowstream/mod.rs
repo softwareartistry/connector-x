@@ -153,6 +153,12 @@ impl ArrowDestination {
         }
     }
 
+    /// Try to get a record batch without blocking.
+    /// Returns Some(batch) if a batch is available, None otherwise.
+    pub fn try_record_batch(&mut self) -> Option<RecordBatch> {
+        self.receiver.try_recv().ok()
+    }
+
     pub fn empty_batch(&self) -> RecordBatch {
         RecordBatch::new_empty(self.arrow_schema.clone())
     }

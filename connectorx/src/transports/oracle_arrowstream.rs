@@ -42,6 +42,8 @@ impl_transport!(
         { NChar[String]              => LargeUtf8[String]          | conversion none }
         { Date[NaiveDateTime]        => Date64[NaiveDateTime]      | conversion auto }
         { Timestamp[NaiveDateTime]   => Date64[NaiveDateTime]      | conversion none }
+        { TimestampNano[NaiveDateTime]   => Date64[NaiveDateTime]      | conversion none }
         { TimestampTz[DateTime<Utc>] => DateTimeTz[DateTime<Utc>]  | conversion auto }
+        { TimestampTzNano[DateTime<Utc>] => DateTimeTz[DateTime<Utc>]  | conversion none }
     }
 );
