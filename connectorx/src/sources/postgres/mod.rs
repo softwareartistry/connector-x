@@ -2097,3 +2097,85 @@ impl<'r> Produce<'r, Option<DateTime<Utc>>> for PostgresSimpleSourceParser {
         val
     }
 }
+
+// ============================================================================
+// Unimplemented RawSource stub
+// ============================================================================
+
+use super::RawSource;
+use crate::impl_unimplemented_raw_produce;
+
+/// Stub parser for RawSource - never instantiated, exists only to satisfy trait bounds.
+pub struct PostgresRawSourceParserStub<P, C>(PhantomData<P>, PhantomData<C>);
+
+unsafe impl<P, C> Send for PostgresRawSourceParserStub<P, C> {}
+unsafe impl<P, C> Sync for PostgresRawSourceParserStub<P, C> {}
+
+impl<'a, P, C> PartitionParser<'a> for PostgresRawSourceParserStub<P, C> {
+    type TypeSystem = PostgresTypeSystem;
+    type Error = PostgresSourceError;
+
+    fn fetch_next(&mut self) -> Result<(usize, bool), Self::Error> {
+        panic!("Raw queries not supported for PostgreSQL")
+    }
+}
+
+impl<P, C> RawSource for PostgresSource<P, C>
+where
+    C: MakeTlsConnect<Socket> + Clone + 'static + Sync + Send,
+    C::TlsConnect: Send,
+    C::Stream: Send,
+    <C::TlsConnect as TlsConnect<Socket>>::Future: Send,
+    PostgresSourcePartition<P, C>:
+        SourcePartition<TypeSystem = PostgresTypeSystem, Error = PostgresSourceError>,
+    P: Send + Sync + 'static,
+{
+    type Parser = PostgresRawSourceParserStub<P, C>;
+
+    fn execute_raw_query(&mut self, _query: &str) 
+        -> Result<(Self::Parser, Vec<String>, Vec<Self::TypeSystem>), Self::Error> 
+    {
+        Err(PostgresSourceError::ConnectorXError(
+            ConnectorXError::Other(anyhow!("Raw queries not supported for PostgreSQL"))
+        ))
+    }
+}
+
+// Helper macro to generate stub impls for all protocol/TLS combinations
+macro_rules! impl_postgres_raw_stub {
+    ($proto:ty, $tls:ty) => {
+        impl_unimplemented_raw_produce!(
+            PostgresRawSourceParserStub<$proto, $tls>, PostgresSourceError,
+            f32, f64, Decimal, i8, i16, i32, i64, u32, bool, String,
+            NaiveDateTime, NaiveDate, NaiveTime, DateTime<Utc>, Uuid, Vec<u8>, Value,
+            IpInet, Vector, HalfVector, Bit, SparseVector,
+            HashMap<String, Option<String>>,
+            Vec<Option<bool>>, Vec<Option<String>>, Vec<Option<i16>>,
+            Vec<Option<i32>>, Vec<Option<i64>>, Vec<Option<f32>>,
+            Vec<Option<f64>>, Vec<Option<Decimal>>
+        );
+
+        // Manual implementations for reference types (can't be done via macro)
+        impl<'r> Produce<'r, &'r str> for PostgresRawSourceParserStub<$proto, $tls> {
+            type Error = PostgresSourceError;
+            fn produce(&'r mut self) -> std::result::Result<&'r str, Self::Error> {
+                panic!("Raw queries not supported for PostgreSQL")
+            }
+        }
+        impl<'r> Produce<'r, Option<&'r str>> for PostgresRawSourceParserStub<$proto, $tls> {
+            type Error = PostgresSourceError;
+            fn produce(&'r mut self) -> std::result::Result<Option<&'r str>, Self::Error> {
+                panic!("Raw queries not supported for PostgreSQL")
+            }
+        }
+    };
+}
+
+impl_postgres_raw_stub!(BinaryProtocol, postgres::NoTls);
+impl_postgres_raw_stub!(BinaryProtocol, postgres_openssl::MakeTlsConnector);
+impl_postgres_raw_stub!(CSVProtocol, postgres::NoTls);
+impl_postgres_raw_stub!(CSVProtocol, postgres_openssl::MakeTlsConnector);
+impl_postgres_raw_stub!(CursorProtocol, postgres::NoTls);
+impl_postgres_raw_stub!(CursorProtocol, postgres_openssl::MakeTlsConnector);
+impl_postgres_raw_stub!(SimpleProtocol, postgres::NoTls);
+impl_postgres_raw_stub!(SimpleProtocol, postgres_openssl::MakeTlsConnector);

@@ -178,6 +178,74 @@ macro_rules! impl_transport {
             impl_transport!(@process [$TSS, $TSD] $([ $($TOKENS)+ ])*);
             impl_transport!(@processor [$TSS, $TSD] $([ $($TOKENS)+ ])*, $([ $($TOKENS)+ ])*);
         }
+
+        // Also implement RawTransport for sources that implement RawSource
+        impl_transport!(@raw_transport $TP, $ET [$TSS, $TSD] [$S, $D] $([ $($TOKENS)+ ])*);
+    };
+
+    // raw_transport - generates RawTransport impl for sources implementing RawSource
+    (@raw_transport $TP:ty, $ET:ty [$TSS:tt, $TSD:tt] [$S:ty, $D:ty] $([ $($TOKENS:tt)+ ])*) => {
+        impl<'tp> $crate::typesystem::RawTransport for $TP
+        where
+            $S: $crate::sources::RawSource,
+        {
+            impl_transport!(@raw_processor $TP, $ET [$TSS, $TSD] [$S, $D] $([ $($TOKENS)+ ])*, $([ $($TOKENS)+ ])*);
+        }
+    };
+
+    // raw_processor - generates the raw_processor function
+    (@raw_processor $TP:ty, $ET:ty [$TSS:tt, $TSD:tt] [$S:ty, $D:ty] $([ $V1:tt [$T1:ty] => $V2:tt [$T2:ty] | conversion $HOW:ident ])*, $([ $($TOKENS:tt)+ ])*) => {
+        fn raw_processor<'d>(
+            ts1: Self::TSS,
+            ts2: Self::TSD,
+        ) -> $crate::errors::Result<
+            fn(
+                src: &mut <$S as $crate::sources::RawSource>::Parser,
+                dst: &mut <Self::D as $crate::destinations::Destination>::Partition<'d>,
+            ) -> Result<(), Self::Error>
+        > where Self: 'd {
+            match (ts1, ts2) {
+                $(
+                    ($TSS::$V1(true), $TSD::$V2(true)) => {
+                        impl_transport!(@raw_process_func_branch $TP, $S, $D, $ET, true [ $($TOKENS)+ ])
+                    }
+
+                    ($TSS::$V1(false), $TSD::$V2(false)) => {
+                        impl_transport!(@raw_process_func_branch $TP, $S, $D, $ET, false [ $($TOKENS)+ ])
+                    }
+                )*
+                #[allow(unreachable_patterns)]
+                _ => fehler::throw!($crate::errors::ConnectorXError::NoConversionRule(
+                    format!("{:?}", ts1), format!("{:?}", ts1))
+                )
+            }
+        }
+    };
+
+    // raw_process_func_branch - handles lifetime annotations in types
+    (@raw_process_func_branch $TP:ty, $S:ty, $D:ty, $ET:ty, $OPT:ident [ $V1:tt [&$L1:lifetime $T1:ty] => $V2:tt [&$L2:lifetime $T2:ty] | conversion $HOW:ident ]) => {
+        impl_transport!(@raw_process_func_branch_inner $TP, $S, $D, $ET, $OPT &$T1, &$T2)
+    };
+    (@raw_process_func_branch $TP:ty, $S:ty, $D:ty, $ET:ty, $OPT:ident [ $V1:tt [$T1:ty] => $V2:tt [&$L2:lifetime $T2:ty] | conversion $HOW:ident ]) => {
+        impl_transport!(@raw_process_func_branch_inner $TP, $S, $D, $ET, $OPT $T1, &$T2)
+    };
+    (@raw_process_func_branch $TP:ty, $S:ty, $D:ty, $ET:ty, $OPT:ident [ $V1:tt [&$L1:lifetime $T1:ty] => $V2:tt [$T2:ty] | conversion $HOW:ident ]) => {
+        impl_transport!(@raw_process_func_branch_inner $TP, $S, $D, $ET, $OPT &$T1, $T2)
+    };
+    (@raw_process_func_branch $TP:ty, $S:ty, $D:ty, $ET:ty, $OPT:ident [ $V1:tt [$T1:ty] => $V2:tt [$T2:ty] | conversion $HOW:ident ]) => {
+        impl_transport!(@raw_process_func_branch_inner $TP, $S, $D, $ET, $OPT $T1, $T2)
+    };
+
+    // raw_process_func_branch_inner - generates the actual function pointer
+    (@raw_process_func_branch_inner $TP:ty, $S:ty, $D:ty, $ET:ty, true $T1:ty, $T2:ty) => {
+        Ok(
+            |s: &mut _, d: &mut _| $crate::typesystem::raw_process::<Option<$T1>, Option<$T2>, $TP, $S, $D, <$S as $crate::sources::Source>::Error, <$D as $crate::destinations::Destination>::Error, $ET>(s, d)
+        )
+    };
+    (@raw_process_func_branch_inner $TP:ty, $S:ty, $D:ty, $ET:ty, false $T1:ty, $T2:ty) => {
+        Ok(
+            |s: &mut _, d: &mut _| $crate::typesystem::raw_process::<$T1, $T2, $TP, $S, $D, <$S as $crate::sources::Source>::Error, <$D as $crate::destinations::Destination>::Error, $ET>(s, d)
+        )
     };
 
     (@cvtts [$TSS:tt, $TSD:tt] $( [$V1:tt [$T1:ty] => $V2:tt [$T2:ty] | conversion $HOW:ident] )*) => {

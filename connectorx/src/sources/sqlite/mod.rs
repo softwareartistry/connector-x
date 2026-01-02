@@ -356,3 +356,42 @@ impl_produce!(
     NaiveDateTime,
     Vec<u8>,
 );
+
+// ============================================================================
+// Unimplemented RawSource stub
+// ============================================================================
+
+use super::RawSource;
+use crate::impl_unimplemented_raw_produce;
+
+/// Stub parser for RawSource - never instantiated, exists only to satisfy trait bounds.
+pub struct SQLiteRawSourceParser;
+
+unsafe impl Send for SQLiteRawSourceParser {}
+unsafe impl Sync for SQLiteRawSourceParser {}
+
+impl<'a> PartitionParser<'a> for SQLiteRawSourceParser {
+    type TypeSystem = SQLiteTypeSystem;
+    type Error = SQLiteSourceError;
+
+    fn fetch_next(&mut self) -> Result<(usize, bool), Self::Error> {
+        panic!("Raw queries not supported for SQLite")
+    }
+}
+
+impl RawSource for SQLiteSource {
+    type Parser = SQLiteRawSourceParser;
+
+    fn execute_raw_query(&mut self, _query: &str) 
+        -> Result<(Self::Parser, Vec<String>, Vec<Self::TypeSystem>), Self::Error> 
+    {
+        Err(SQLiteSourceError::ConnectorXError(
+            ConnectorXError::Other(anyhow!("Raw queries not supported for SQLite"))
+        ))
+    }
+}
+
+impl_unimplemented_raw_produce!(
+    SQLiteRawSourceParser, SQLiteSourceError,
+    bool, i64, i32, i16, f64, Box<str>, NaiveDate, NaiveTime, NaiveDateTime, Vec<u8>
+);

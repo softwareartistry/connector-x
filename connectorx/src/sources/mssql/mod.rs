@@ -428,3 +428,69 @@ impl_produce!(
     NaiveTime,
     DateTime<Utc>,
 );
+
+// ============================================================================
+// Unimplemented RawSource stub
+// ============================================================================
+
+use super::RawSource;
+use crate::impl_unimplemented_raw_produce;
+
+/// Stub parser for RawSource - never instantiated, exists only to satisfy trait bounds.
+pub struct MsSQLRawSourceParser;
+
+unsafe impl Send for MsSQLRawSourceParser {}
+unsafe impl Sync for MsSQLRawSourceParser {}
+
+impl<'a> PartitionParser<'a> for MsSQLRawSourceParser {
+    type TypeSystem = MsSQLTypeSystem;
+    type Error = MsSQLSourceError;
+
+    fn fetch_next(&mut self) -> Result<(usize, bool), Self::Error> {
+        panic!("Raw queries not supported for MsSQL")
+    }
+}
+
+impl RawSource for MsSQLSource {
+    type Parser = MsSQLRawSourceParser;
+
+    fn execute_raw_query(&mut self, _query: &str) 
+        -> Result<(Self::Parser, Vec<String>, Vec<Self::TypeSystem>), Self::Error> 
+    {
+        Err(MsSQLSourceError::ConnectorXError(
+            ConnectorXError::Other(anyhow!("Raw queries not supported for MsSQL"))
+        ))
+    }
+}
+
+impl_unimplemented_raw_produce!(
+    MsSQLRawSourceParser, MsSQLSourceError,
+    u8, i16, i32, i64, IntN, f32, f64, FloatN, bool, String, Vec<u8>,
+    Uuid, Decimal, NaiveDateTime, NaiveDate, NaiveTime, DateTime<Utc>
+);
+
+// Manual implementations for reference types (can't be done via macro)
+impl<'r> Produce<'r, &'r str> for MsSQLRawSourceParser {
+    type Error = MsSQLSourceError;
+    fn produce(&'r mut self) -> std::result::Result<&'r str, Self::Error> {
+        panic!("Raw queries not supported for MsSQL")
+    }
+}
+impl<'r> Produce<'r, Option<&'r str>> for MsSQLRawSourceParser {
+    type Error = MsSQLSourceError;
+    fn produce(&'r mut self) -> std::result::Result<Option<&'r str>, Self::Error> {
+        panic!("Raw queries not supported for MsSQL")
+    }
+}
+impl<'r> Produce<'r, &'r [u8]> for MsSQLRawSourceParser {
+    type Error = MsSQLSourceError;
+    fn produce(&'r mut self) -> std::result::Result<&'r [u8], Self::Error> {
+        panic!("Raw queries not supported for MsSQL")
+    }
+}
+impl<'r> Produce<'r, Option<&'r [u8]>> for MsSQLRawSourceParser {
+    type Error = MsSQLSourceError;
+    fn produce(&'r mut self) -> std::result::Result<Option<&'r [u8]>, Self::Error> {
+        panic!("Raw queries not supported for MsSQL")
+    }
+}

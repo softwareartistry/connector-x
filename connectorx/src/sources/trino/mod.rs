@@ -667,3 +667,42 @@ impl<'r, 'a> Produce<'r, Option<NaiveDate>> for TrinoSourcePartitionParser<'a> {
         }
     }
 }
+
+// ============================================================================
+// Unimplemented RawSource stub
+// ============================================================================
+
+use super::RawSource;
+use crate::impl_unimplemented_raw_produce;
+
+/// Stub parser for RawSource - never instantiated, exists only to satisfy trait bounds.
+pub struct TrinoRawSourceParser;
+
+unsafe impl Send for TrinoRawSourceParser {}
+unsafe impl Sync for TrinoRawSourceParser {}
+
+impl<'a> PartitionParser<'a> for TrinoRawSourceParser {
+    type TypeSystem = TrinoTypeSystem;
+    type Error = TrinoSourceError;
+
+    fn fetch_next(&mut self) -> Result<(usize, bool), Self::Error> {
+        panic!("Raw queries not supported for Trino")
+    }
+}
+
+impl RawSource for TrinoSource {
+    type Parser = TrinoRawSourceParser;
+
+    fn execute_raw_query(&mut self, _query: &str) 
+        -> Result<(Self::Parser, Vec<String>, Vec<Self::TypeSystem>), Self::Error> 
+    {
+        Err(TrinoSourceError::ConnectorXError(
+            ConnectorXError::Other(anyhow::anyhow!("Raw queries not supported for Trino"))
+        ))
+    }
+}
+
+impl_unimplemented_raw_produce!(
+    TrinoRawSourceParser, TrinoSourceError,
+    NaiveDate, NaiveTime, NaiveDateTime, bool, i32, i16, i8, f64, f32, String, char
+);

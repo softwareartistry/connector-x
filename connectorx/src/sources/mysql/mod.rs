@@ -534,3 +534,54 @@ impl_produce_text!(
     Vec<u8>,
     Value,
 );
+
+// ============================================================================
+// Unimplemented RawSource stub
+// ============================================================================
+
+use super::RawSource;
+use crate::impl_unimplemented_raw_produce;
+
+/// Stub parser for RawSource - never instantiated, exists only to satisfy trait bounds.
+pub struct MySQLRawSourceParser<P>(PhantomData<P>);
+
+unsafe impl<P> Send for MySQLRawSourceParser<P> {}
+unsafe impl<P> Sync for MySQLRawSourceParser<P> {}
+
+impl<'a, P> PartitionParser<'a> for MySQLRawSourceParser<P> {
+    type TypeSystem = MySQLTypeSystem;
+    type Error = MySQLSourceError;
+
+    fn fetch_next(&mut self) -> Result<(usize, bool), Self::Error> {
+        panic!("Raw queries not supported for MySQL")
+    }
+}
+
+impl<P> RawSource for MySQLSource<P>
+where
+    MySQLSourcePartition<P>:
+        SourcePartition<TypeSystem = MySQLTypeSystem, Error = MySQLSourceError>,
+    P: Send + Sync + 'static,
+{
+    type Parser = MySQLRawSourceParser<P>;
+
+    fn execute_raw_query(&mut self, _query: &str) 
+        -> Result<(Self::Parser, Vec<String>, Vec<Self::TypeSystem>), Self::Error> 
+    {
+        Err(MySQLSourceError::ConnectorXError(
+            ConnectorXError::Other(anyhow!("Raw queries not supported for MySQL"))
+        ))
+    }
+}
+
+impl_unimplemented_raw_produce!(
+    MySQLRawSourceParser<BinaryProtocol>, MySQLSourceError,
+    i8, i16, i32, i64, u8, u16, u32, u64, f32, f64,
+    NaiveDate, NaiveTime, NaiveDateTime, Decimal, String, Vec<u8>, Value
+);
+
+impl_unimplemented_raw_produce!(
+    MySQLRawSourceParser<TextProtocol>, MySQLSourceError,
+    i8, i16, i32, i64, u8, u16, u32, u64, f32, f64,
+    NaiveDate, NaiveTime, NaiveDateTime, Decimal, String, Vec<u8>, Value
+);

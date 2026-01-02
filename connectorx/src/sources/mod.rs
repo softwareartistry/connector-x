@@ -112,3 +112,37 @@ pub trait Produce<'r, T> {
 
     fn produce(&'r mut self) -> Result<T, Self::Error>;
 }
+
+/// Helper macro to generate `Produce` implementations for stub RawSource parsers.
+/// 
+/// This macro is used by sources that don't support raw queries to generate
+/// stub `Produce` implementations that will never be called (since `execute_raw_query`
+/// returns an error). These implementations exist only to satisfy trait bounds
+/// required by the `RawTransport` trait.
+///
+/// # Usage
+/// ```ignore
+/// impl_unimplemented_raw_produce!(
+///     MyRawSourceParser, MySourceError,
+///     i32, i64, f64, String, // ... list of types used in transport mappings
+/// );
+/// ```
+#[macro_export]
+macro_rules! impl_unimplemented_raw_produce {
+    ($parser:ty, $error:ty, $($t:ty),* $(,)?) => {
+        $(
+            impl<'r> $crate::sources::Produce<'r, $t> for $parser {
+                type Error = $error;
+                fn produce(&'r mut self) -> std::result::Result<$t, Self::Error> {
+                    panic!("Raw queries not supported for this source")
+                }
+            }
+            impl<'r> $crate::sources::Produce<'r, Option<$t>> for $parser {
+                type Error = $error;
+                fn produce(&'r mut self) -> std::result::Result<Option<$t>, Self::Error> {
+                    panic!("Raw queries not supported for this source")
+                }
+            }
+        )*
+    };
+}

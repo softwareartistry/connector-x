@@ -1142,3 +1142,42 @@ impl<'r, 'a> Produce<'r, Option<DateTime<Utc>>> for BigQuerySourceParser {
         }
     }
 }
+
+// ============================================================================
+// Unimplemented RawSource stub
+// ============================================================================
+
+use super::RawSource;
+use crate::impl_unimplemented_raw_produce;
+
+/// Stub parser for RawSource - never instantiated, exists only to satisfy trait bounds.
+pub struct BigQueryRawSourceParser;
+
+unsafe impl Send for BigQueryRawSourceParser {}
+unsafe impl Sync for BigQueryRawSourceParser {}
+
+impl<'a> PartitionParser<'a> for BigQueryRawSourceParser {
+    type TypeSystem = BigQueryTypeSystem;
+    type Error = BigQuerySourceError;
+
+    fn fetch_next(&mut self) -> Result<(usize, bool), Self::Error> {
+        panic!("Raw queries not supported for BigQuery")
+    }
+}
+
+impl RawSource for BigQuerySource {
+    type Parser = BigQueryRawSourceParser;
+
+    fn execute_raw_query(&mut self, _query: &str) 
+        -> Result<(Self::Parser, Vec<String>, Vec<Self::TypeSystem>), Self::Error> 
+    {
+        Err(BigQuerySourceError::ConnectorXError(
+            ConnectorXError::Other(anyhow!("Raw queries not supported for BigQuery"))
+        ))
+    }
+}
+
+impl_unimplemented_raw_produce!(
+    BigQueryRawSourceParser, BigQuerySourceError,
+    bool, i64, f64, String, NaiveDate, NaiveDateTime, NaiveTime, DateTime<Utc>
+);

@@ -6,7 +6,7 @@
 
 use crate::destinations::{Consume, Destination, DestinationPartition};
 use crate::errors::{ConnectorXError, Result as CXResult};
-use crate::sources::{PartitionParser, Produce, Source, SourcePartition};
+use crate::sources::{PartitionParser, Produce, RawSource, Source, SourcePartition};
 
 #[doc(hidden)]
 /// `TypeSystem` describes all the types a source or destination support
@@ -115,6 +115,33 @@ pub trait Transport {
         Self: 'd;
 }
 
+/// Transport for raw queries - works with `RawSource::Parser` instead of `SourcePartition::Parser`.
+///
+/// This trait extends `Transport` to provide processor functions that work with raw query parsers,
+/// enabling raw/stored procedure queries to reuse the same type conversion logic as standard queries.
+///
+/// Do not manually implement this trait. Use [`impl_transport!`] which generates both
+/// `Transport` and `RawTransport` implementations.
+pub trait RawTransport: Transport
+where
+    Self::S: RawSource,
+{
+    /// Get a processor function for raw source parser.
+    /// Similar to `Transport::processor` but works with `RawSource::Parser`.
+    #[allow(clippy::type_complexity)]
+    fn raw_processor<'d>(
+        ts1: Self::TSS,
+        ts2: Self::TSD,
+    ) -> CXResult<
+        fn(
+            src: &mut <Self::S as RawSource>::Parser,
+            dst: &mut <Self::D as Destination>::Partition<'d>,
+        ) -> Result<(), Self::Error>,
+    >
+    where
+        Self: 'd;
+}
+
 #[doc(hidden)]
 pub fn process<'s, 'd, 'r, T1, T2, TP, S, D, ES, ED, ET>(
     src: &'r mut <<S as Source>::Partition as SourcePartition>::Parser<'s>,
@@ -137,6 +164,34 @@ where
     ET: From<ES> + From<ED>,
 {
     let val: T1 = PartitionParser::parse(src)?;
+    let val: T2 = <TP as TypeConversion<T1, _>>::convert(val);
+    DestinationPartition::write(dst, val)?;
+    Ok(())
+}
+
+/// Process function for raw queries - works with `RawSource::Parser`.
+/// Similar to `process` but uses the raw parser instead of partition parser.
+#[doc(hidden)]
+pub fn raw_process<'d, 'r, T1, T2, TP, S, D, ES, ED, ET>(
+    src: &'r mut <S as RawSource>::Parser,
+    dst: &'r mut <D as Destination>::Partition<'d>,
+) -> Result<(), ET>
+where
+    T1: TypeAssoc<<S as Source>::TypeSystem>,
+    S: RawSource<Error = ES>,
+
+    <S as RawSource>::Parser: Produce<'r, T1, Error = ES>,
+    ES: From<ConnectorXError> + Send,
+
+    T2: TypeAssoc<<D as Destination>::TypeSystem>,
+    D: Destination<Error = ED>,
+    <D as Destination>::Partition<'d>: Consume<T2, Error = ED>,
+    ED: From<ConnectorXError> + Send,
+
+    TP: TypeConversion<T1, T2>,
+    ET: From<ES> + From<ED>,
+{
+    let val: T1 = src.produce()?;
     let val: T2 = <TP as TypeConversion<T1, _>>::convert(val);
     DestinationPartition::write(dst, val)?;
     Ok(())

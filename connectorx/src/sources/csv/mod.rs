@@ -408,3 +408,42 @@ impl<'r, 'a> Produce<'r, Option<DateTime<Utc>>> for CSVSourcePartitionParser<'a>
         Some(v)
     }
 }
+
+// ============================================================================
+// Unimplemented RawSource stub
+// ============================================================================
+
+use super::RawSource;
+use crate::impl_unimplemented_raw_produce;
+
+/// Stub parser for RawSource - never instantiated, exists only to satisfy trait bounds.
+pub struct CSVRawSourceParser;
+
+unsafe impl Send for CSVRawSourceParser {}
+unsafe impl Sync for CSVRawSourceParser {}
+
+impl<'a> PartitionParser<'a> for CSVRawSourceParser {
+    type TypeSystem = CSVTypeSystem;
+    type Error = CSVSourceError;
+
+    fn fetch_next(&mut self) -> Result<(usize, bool), Self::Error> {
+        panic!("Raw queries not supported for CSV")
+    }
+}
+
+impl RawSource for CSVSource {
+    type Parser = CSVRawSourceParser;
+
+    fn execute_raw_query(&mut self, _query: &str) 
+        -> Result<(Self::Parser, Vec<String>, Vec<Self::TypeSystem>), Self::Error> 
+    {
+        Err(CSVSourceError::ConnectorXError(
+            ConnectorXError::Other(anyhow!("Raw queries not supported for CSV"))
+        ))
+    }
+}
+
+impl_unimplemented_raw_produce!(
+    CSVRawSourceParser, CSVSourceError,
+    i64, f64, bool, String, DateTime<Utc>
+);

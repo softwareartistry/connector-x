@@ -245,3 +245,41 @@ impl<'r, 'a> Produce<'r, Option<DateTime<Utc>>> for DummySourcePartitionParser<'
         Ok(ret)
     }
 }
+
+// ============================================================================
+// Unimplemented RawSource stub
+// ============================================================================
+
+use super::RawSource;
+use anyhow::anyhow;
+use crate::impl_unimplemented_raw_produce;
+
+/// Stub parser for RawSource - never instantiated, exists only to satisfy trait bounds.
+pub struct DummyRawSourceParser;
+
+unsafe impl Send for DummyRawSourceParser {}
+unsafe impl Sync for DummyRawSourceParser {}
+
+impl<'a> PartitionParser<'a> for DummyRawSourceParser {
+    type TypeSystem = DummyTypeSystem;
+    type Error = ConnectorXError;
+
+    fn fetch_next(&mut self) -> Result<(usize, bool)> {
+        panic!("Raw queries not supported for Dummy")
+    }
+}
+
+impl RawSource for DummySource {
+    type Parser = DummyRawSourceParser;
+
+    fn execute_raw_query(&mut self, _query: &str) 
+        -> Result<(Self::Parser, Vec<String>, Vec<Self::TypeSystem>)> 
+    {
+        Err(ConnectorXError::Other(anyhow!("Raw queries not supported for Dummy")))
+    }
+}
+
+impl_unimplemented_raw_produce!(
+    DummyRawSourceParser, ConnectorXError,
+    u64, i32, i64, f64, bool, String, DateTime<Utc>
+);
