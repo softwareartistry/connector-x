@@ -292,7 +292,8 @@ pub fn limit1_query<T: Dialect>(sql: &CXQuery<String>, dialect: &T) -> CXQuery<S
 pub fn limit1_query_oracle(sql: &CXQuery<String>) -> CXQuery<String> {
     trace!("Incoming oracle query: {}", sql);
 
-    CXQuery::Wrapped(format!("SELECT * FROM ({}) WHERE rownum = 1", sql))
+    // CXQuery::Wrapped(format!("SELECT * FROM ({}) WHERE rownum = 1", sql))
+    CXQuery::Wrapped(format!("SELECT * FROM ({}) WHERE 1=2", sql))
 
     // let ast = Parser::parse_sql(&OracleDialect {}, sql.as_str())?;
     // if ast.len() != 1 {

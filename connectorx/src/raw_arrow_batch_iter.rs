@@ -355,7 +355,7 @@ where
 /// Type alias for Oracle raw query iterator.
 /// 
 /// This provides backwards compatibility and a convenient shorthand for Oracle users.
-#[cfg(feature = "src_oracle")]
+#[cfg(all(feature = "src_oracle", feature = "dst_arrow"))]
 pub type OracleRawRecordBatchIterator = RawArrowBatchIterator<
     crate::sources::oracle::OracleSource,
     crate::transports::OracleArrowStreamTransport,

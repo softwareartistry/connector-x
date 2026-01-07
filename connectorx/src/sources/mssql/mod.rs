@@ -156,39 +156,42 @@ where
     #[throws(MsSQLSourceError)]
     fn fetch_metadata(&mut self) {
         assert!(!self.queries.is_empty());
-
+    
         let mut conn = self.rt.block_on(self.pool.get())?;
         let first_query = &self.queries[0];
-        let (names, types) = match self.rt.block_on(conn.query(first_query.as_str(), &[])) {
-            Ok(mut stream) => match self.rt.block_on(async { stream.columns().await }) {
-                Ok(Some(columns)) => columns
-                    .iter()
-                    .map(|col| {
-                        (
-                            col.name().to_string(),
-                            MsSQLTypeSystem::from(&col.column_type()),
-                        )
-                    })
-                    .unzip(),
-                Ok(None) => {
-                    throw!(anyhow!(
-                        "MsSQL returned no columns for query: {}",
-                        first_query
-                    ));
-                }
-                Err(e) => {
-                    throw!(anyhow!("Error fetching columns: {}", e));
-                }
-            },
-            Err(e) => {
-                debug!(
-                    "cannot get metadata for '{}', try next query: {}",
-                    first_query, e
-                );
-                throw!(e);
-            }
-        };
+        
+        // Use dm_exec_describe_first_result_set to get metadata without execution
+        // let metadata_query = format!(
+        //     "SELECT name, system_type_name, is_nullable \
+        //      FROM sys.dm_exec_describe_first_result_set(N'{}', NULL, 0)",
+        //     first_query.as_str().replace("'", "''")  // Escape single quotes
+        // );
 
+        let metadata_query = format!(
+            "SELECT COALESCE(name, 'column_' + CAST(column_ordinal AS VARCHAR)) as name, \
+                    system_type_name, is_nullable \
+             FROM sys.dm_exec_describe_first_result_set(N'{}', NULL, 0) \
+             WHERE is_hidden = 0",  // Filter out hidden columns
+            first_query.as_str().replace("'", "''")
+        );
+        
+        let stream = self.rt.block_on(conn.query(metadata_query.as_str(), &[]))?;
+        let rows = self.rt.block_on(stream.into_first_result())?;
+        
+        let mut names = Vec::new();
+        let mut types = Vec::new();
+        
+        for row in rows {
+            let name: &str = row.get(0).ok_or_else(|| anyhow!("Missing column name"))?;
+            let type_name: &str = row.get(1).ok_or_else(|| anyhow!("Missing type name"))?;
+            let is_nullable: bool = row.get(2).unwrap_or(true);
+            
+            names.push(name.to_string());
+            types.push(
+                MsSQLTypeSystem::from_system_type_name(type_name, is_nullable)
+                    .ok_or_else(|| anyhow!("Unknown SQL Server type: {}", type_name))?
+            );
+        }     
         self.names = names;
         self.schema = types;
     }

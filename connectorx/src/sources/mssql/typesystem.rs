@@ -133,3 +133,41 @@ impl<'a> FromSql<'a> for FloatN {
         }
     }
 }
+
+impl MsSQLTypeSystem {
+    pub fn from_system_type_name(type_name: &str, is_nullable: bool) -> Option<Self> {
+        // Extract base type (e.g., "varchar(50)" -> "varchar")
+        let base_type = type_name.split('(').next()?.to_lowercase();
+        
+        match base_type.as_str() {
+            "tinyint" => Some(MsSQLTypeSystem::Tinyint(is_nullable)),
+            "smallint" => Some(MsSQLTypeSystem::Smallint(is_nullable)),
+            "int" => Some(MsSQLTypeSystem::Int(is_nullable)),
+            "bigint" => Some(MsSQLTypeSystem::Bigint(is_nullable)),
+            "real" => Some(MsSQLTypeSystem::Float24(is_nullable)),
+            "float" => Some(MsSQLTypeSystem::Float53(is_nullable)),
+            "bit" => Some(MsSQLTypeSystem::Bit(is_nullable)),
+            "nvarchar" => Some(MsSQLTypeSystem::Nvarchar(is_nullable)),
+            "varchar" => Some(MsSQLTypeSystem::Varchar(is_nullable)),
+            "nchar" => Some(MsSQLTypeSystem::Nchar(is_nullable)),
+            "char" => Some(MsSQLTypeSystem::Char(is_nullable)),
+            "ntext" => Some(MsSQLTypeSystem::Ntext(is_nullable)),
+            "text" => Some(MsSQLTypeSystem::Text(is_nullable)),
+            "binary" => Some(MsSQLTypeSystem::Binary(is_nullable)),
+            "varbinary" => Some(MsSQLTypeSystem::Varbinary(is_nullable)),
+            "image" => Some(MsSQLTypeSystem::Image(is_nullable)),
+            "uniqueidentifier" => Some(MsSQLTypeSystem::Uniqueidentifier(is_nullable)),
+            "numeric" => Some(MsSQLTypeSystem::Numeric(is_nullable)),
+            "decimal" => Some(MsSQLTypeSystem::Decimal(is_nullable)),
+            "datetime" => Some(MsSQLTypeSystem::Datetime(is_nullable)),
+            "datetime2" => Some(MsSQLTypeSystem::Datetime2(is_nullable)),
+            "smalldatetime" => Some(MsSQLTypeSystem::Smalldatetime(is_nullable)),
+            "date" => Some(MsSQLTypeSystem::Date(is_nullable)),
+            "time" => Some(MsSQLTypeSystem::Time(is_nullable)),
+            "datetimeoffset" => Some(MsSQLTypeSystem::Datetimeoffset(is_nullable)),
+            "money" => Some(MsSQLTypeSystem::Money(is_nullable)),
+            "smallmoney" => Some(MsSQLTypeSystem::SmallMoney(is_nullable)),
+            _ => None,
+        }
+    }
+}
