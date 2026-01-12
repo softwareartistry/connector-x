@@ -384,6 +384,16 @@ impl<'a> PartitionParser<'a> for MsSQLSourceParser<'a> {
     }
 }
 
+impl<'a> Drop for MsSQLSourceParser<'a> {
+    fn drop(&mut self) {
+        if !self.is_finished {
+            while self.rt.block_on(self.iter.next()).is_some() {
+                // consume remaining items
+            }
+        }
+    }
+}
+
 macro_rules! impl_produce {
     ($($t: ty,)+) => {
         $(
