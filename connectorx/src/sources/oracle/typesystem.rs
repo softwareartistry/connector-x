@@ -19,6 +19,7 @@ pub enum OracleTypeSystem {
     TimestampTz(bool),
     TimestampNano(bool),
     TimestampTzNano(bool),
+    Rowid(bool),
 }
 
 impl_typesystem! {
@@ -27,7 +28,7 @@ impl_typesystem! {
         { NumInt => i64 }
         { Float | NumFloat | BinaryFloat | BinaryDouble => f64 }
         { Blob => Vec<u8>}
-        { Clob | VarChar | Char | NVarChar | NChar => String }
+        { Clob | VarChar | Char | NVarChar | NChar | Rowid => String }
         { Date | Timestamp | TimestampNano => NaiveDateTime }
         { TimestampTz | TimestampTzNano => DateTime<Utc> }
     }
@@ -58,6 +59,7 @@ impl<'a> From<&'a OracleType> for OracleTypeSystem {
             | OracleType::TimestampTZ(8)
             | OracleType::TimestampTZ(9) => TimestampTzNano(true),
             OracleType::TimestampTZ(_) => TimestampTz(true),
+            OracleType::Rowid => Rowid(true),
             _ => unimplemented!("{}", format!("Type {:?} not implemented for oracle!", ty)),
         }
     }
