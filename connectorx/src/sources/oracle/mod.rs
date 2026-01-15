@@ -53,6 +53,7 @@ pub struct OracleSource {
     queries: Vec<CXQuery<String>>,
     names: Vec<String>,
     schema: Vec<OracleTypeSystem>,
+    array_size: Option<u32>,
 }
 
 #[throws(OracleSourceError)]
@@ -95,7 +96,19 @@ impl OracleSource {
             queries: vec![],
             names: vec![],
             schema: vec![],
+            array_size: None,
         }
+    }
+
+    /// Set the Oracle array size for prefetch_rows and fetch_array_size.
+    /// If not set, defaults to ORACLE_ARRAY_SIZE constant (1024).
+    pub fn set_array_size(&mut self, size: u32) {
+        self.array_size = Some(size);
+    }
+
+    /// Get the configured array size, or None if using default.
+    pub fn array_size(&self) -> Option<u32> {
+        self.array_size
     }
 }
 
@@ -197,7 +210,12 @@ where
         let mut ret = vec![];
         for query in self.queries {
             let conn = self.pool.get()?;
-            ret.push(OracleSourcePartition::new(conn, &query, &self.schema));
+            ret.push(OracleSourcePartition::new(
+                conn,
+                &query,
+                &self.schema,
+                self.array_size,
+            ));
         }
         ret
     }
@@ -406,16 +424,23 @@ pub struct OracleSourcePartition {
     schema: Vec<OracleTypeSystem>,
     nrows: usize,
     ncols: usize,
+    array_size: Option<u32>,
 }
 
 impl OracleSourcePartition {
-    pub fn new(conn: OracleConn, query: &CXQuery<String>, schema: &[OracleTypeSystem]) -> Self {
+    pub fn new(
+        conn: OracleConn,
+        query: &CXQuery<String>,
+        schema: &[OracleTypeSystem],
+        array_size: Option<u32>,
+    ) -> Self {
         Self {
             conn,
             query: query.clone(),
             schema: schema.to_vec(),
             nrows: 0,
             ncols: schema.len(),
+            array_size,
         }
     }
 }
@@ -437,7 +462,7 @@ impl SourcePartition for OracleSourcePartition {
         let query = self.query.clone();
 
         // let iter = self.conn.query(query.as_str(), &[])?;
-        OracleTextSourceParser::new(&self.conn, query.as_str(), &self.schema)?
+        OracleTextSourceParser::new(&self.conn, query.as_str(), &self.schema, self.array_size)?
     }
 
     fn nrows(&self) -> usize {
@@ -462,11 +487,17 @@ pub struct OracleTextSourceParser<'a> {
 
 impl<'a> OracleTextSourceParser<'a> {
     #[throws(OracleSourceError)]
-    pub fn new(conn: &'a OracleConn, query: &str, schema: &[OracleTypeSystem]) -> Self {
+    pub fn new(
+        conn: &'a OracleConn,
+        query: &str,
+        schema: &[OracleTypeSystem],
+        array_size: Option<u32>,
+    ) -> Self {
+        let size = array_size.unwrap_or(ORACLE_ARRAY_SIZE);
         let stmt = conn
             .statement(query)
-            .prefetch_rows(ORACLE_ARRAY_SIZE)
-            .fetch_array_size(ORACLE_ARRAY_SIZE)
+            .prefetch_rows(size)
+            .fetch_array_size(size)
             .build()?;
         let rows: OwningHandle<Box<Statement>, DummyBox<ResultSet<'a, Row>>> =
             OwningHandle::new_with_fn(Box::new(stmt), |stmt: *const Statement| unsafe {
