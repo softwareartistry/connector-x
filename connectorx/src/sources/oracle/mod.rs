@@ -25,6 +25,7 @@ use r2d2_oracle::{
     oracle::{Connector, Row, Statement},
     OracleConnectionManager,
 };
+use rust_decimal::Decimal;
 use sqlparser::dialect::Dialect;
 use url::Url;
 use urlencoding::decode;
@@ -54,6 +55,7 @@ pub struct OracleSource {
     names: Vec<String>,
     schema: Vec<OracleTypeSystem>,
     array_size: Option<u32>,
+    current_schema: Option<String>,
 }
 
 #[throws(OracleSourceError)]
@@ -90,6 +92,9 @@ impl OracleSource {
             .max_size(nconn as u32)
             .build(manager)?;
 
+        let params: HashMap<String, String> = conn.query_pairs().into_owned().collect();
+        let current_schema = params.get("schema").cloned();
+
         Self {
             pool,
             origin_query: None,
@@ -97,6 +102,7 @@ impl OracleSource {
             names: vec![],
             schema: vec![],
             array_size: None,
+            current_schema,
         }
     }
 
@@ -109,6 +115,13 @@ impl OracleSource {
     /// Get the configured array size, or None if using default.
     pub fn array_size(&self) -> Option<u32> {
         self.array_size
+    }
+    pub fn get_conn(&self) -> Result<OracleConn, OracleSourceError> {
+        let conn = self.pool.get()?;
+        if let Some(schema) = &self.current_schema {
+            conn.set_current_schema(schema)?;
+        }
+        Ok(conn)
     }
 }
 
@@ -141,7 +154,7 @@ where
     fn fetch_metadata(&mut self) {
         assert!(!self.queries.is_empty());
 
-        let conn = self.pool.get()?;
+        let conn = self.get_conn()?;
         for (i, query) in self.queries.iter().enumerate() {
             // assuming all the partition queries yield same schema
             // without rownum = 1, derived type might be wrong
@@ -187,7 +200,7 @@ where
         match &self.origin_query {
             Some(q) => {
                 let cxq = CXQuery::Naked(q.clone());
-                let conn = self.pool.get()?;
+                let conn = self.get_conn()?;
 
                 let nrows = conn
                     .query_row_as::<usize>(count_query(&cxq, &OracleDialect {})?.as_str(), &[])?;
@@ -208,14 +221,9 @@ where
     #[throws(OracleSourceError)]
     fn partition(self) -> Vec<Self::Partition> {
         let mut ret = vec![];
-        for query in self.queries {
-            let conn = self.pool.get()?;
-            ret.push(OracleSourcePartition::new(
-                conn,
-                &query,
-                &self.schema,
-                self.array_size,
-            ));
+        for query in &self.queries {
+            let conn = self.get_conn()?;
+            ret.push(OracleSourcePartition::new(conn, &query, &self.schema, self.array_size));
         }
         ret
     }
@@ -418,6 +426,32 @@ impl_produce_raw!(
     Vec<u8>,
 );
 
+impl<'r> Produce<'r, Decimal> for OracleRawSourceParser {
+    type Error = OracleSourceError;
+
+    #[throws(OracleSourceError)]
+    fn produce(&'r mut self) -> Decimal {
+        let (ridx, cidx) = self.next_loc()?;
+        let s: String = self.rowbuf[ridx].get(cidx)?;
+        let res = s.parse::<Decimal>()?;
+        res
+    }
+}
+
+impl<'r> Produce<'r, Option<Decimal>> for OracleRawSourceParser {
+    type Error = OracleSourceError;
+
+    #[throws(OracleSourceError)]
+    fn produce(&'r mut self) -> Option<Decimal> {
+        let (ridx, cidx) = self.next_loc()?;
+        let s: Option<String> = self.rowbuf[ridx].get(cidx)?;
+        match s {
+            Some(val) => Some(val.parse::<Decimal>()?),
+            None => None,
+        }
+    }
+}
+
 pub struct OracleSourcePartition {
     conn: OracleConn,
     query: CXQuery<String>,
@@ -591,3 +625,30 @@ impl_produce_text!(
     DateTime<Utc>,
     Vec<u8>,
 );
+
+// Manual implementation for Decimal since Oracle doesn't support it directly via FromSql
+impl<'r, 'a> Produce<'r, Decimal> for OracleTextSourceParser<'a> {
+    type Error = OracleSourceError;
+
+    #[throws(OracleSourceError)]
+    fn produce(&'r mut self) -> Decimal {
+        let (ridx, cidx) = self.next_loc()?;
+        let s: String = self.rowbuf[ridx].get(cidx)?;
+        let res = s.parse::<Decimal>()?;
+        res
+    }
+}
+
+impl<'r, 'a> Produce<'r, Option<Decimal>> for OracleTextSourceParser<'a> {
+    type Error = OracleSourceError;
+
+    #[throws(OracleSourceError)]
+    fn produce(&'r mut self) -> Option<Decimal> {
+        let (ridx, cidx) = self.next_loc()?;
+        let s: Option<String> = self.rowbuf[ridx].get(cidx)?;
+        match s {
+            Some(val) => Some(val.parse::<Decimal>()?),
+            None => None,
+        }
+    }
+}

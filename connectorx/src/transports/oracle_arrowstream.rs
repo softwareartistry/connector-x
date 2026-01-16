@@ -1,12 +1,14 @@
 use crate::{
     destinations::arrowstream::{
-        ArrowDestination, ArrowDestinationError, typesystem::{ArrowTypeSystem, DateTimeWrapperMicro, NaiveDateTimeWrapperMicro}
+        typesystem::{ArrowTypeSystem, DateTimeWrapperMicro, NaiveDateTimeWrapperMicro},
+        ArrowDestination, ArrowDestinationError,
     },
     impl_transport,
     sources::oracle::{OracleSource, OracleSourceError, OracleTypeSystem},
     typesystem::TypeConversion,
 };
 use chrono::{DateTime, NaiveDateTime, Utc};
+use rust_decimal::Decimal;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -30,6 +32,7 @@ impl_transport!(
     route = OracleSource => ArrowDestination,
     mappings = {
         { NumFloat[f64]              => Float64[f64]               | conversion auto }
+        { NumDecimal[Decimal]        => Decimal[Decimal]           | conversion auto }
         { Float[f64]                 => Float64[f64]               | conversion none }
         { BinaryFloat[f64]           => Float64[f64]               | conversion none }
         { BinaryDouble[f64]          => Float64[f64]               | conversion none }
