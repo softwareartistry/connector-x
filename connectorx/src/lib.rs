@@ -146,8 +146,6 @@ pub mod typesystem;
 mod macros;
 #[cfg(feature = "dst_arrow")]
 pub mod arrow_batch_iter;
-#[cfg(feature = "dst_arrow")]
-pub mod raw_arrow_batch_iter;
 pub mod constants;
 pub mod data_order;
 pub mod destinations;
@@ -160,6 +158,8 @@ pub mod fed_rewriter;
 #[cfg(feature = "dst_arrow")]
 pub mod get_arrow;
 pub mod partition;
+#[cfg(feature = "dst_arrow")]
+pub mod raw_arrow_batch_iter;
 pub mod source_router;
 pub mod sources;
 #[doc(hidden)]
@@ -171,8 +171,6 @@ pub mod utils;
 pub mod prelude {
     #[cfg(feature = "dst_arrow")]
     pub use crate::arrow_batch_iter::{set_global_num_thread, RecordBatchIterator};
-    #[cfg(all(feature = "dst_arrow", feature = "src_oracle"))]
-    pub use crate::raw_arrow_batch_iter::{OracleRawRecordBatchIterator, RawArrowError};
     pub use crate::data_order::{coordinate, DataOrder};
     #[cfg(feature = "dst_arrow")]
     pub use crate::destinations::arrow::{ArrowDestination, ArrowPartitionWriter, ArrowTypeSystem};
@@ -189,6 +187,8 @@ pub mod prelude {
     pub use crate::fed_rewriter::{rewrite_sql, FederatedDataSourceInfo, Plan};
     #[cfg(feature = "dst_arrow")]
     pub use crate::get_arrow::{get_arrow, new_record_batch_iter};
+    #[cfg(all(feature = "dst_arrow", feature = "src_oracle"))]
+    pub use crate::raw_arrow_batch_iter::{OracleRawRecordBatchIterator, RawArrowError};
     pub use crate::source_router::*;
     #[cfg(feature = "src_bigquery")]
     pub use crate::sources::bigquery::BigQuerySource;

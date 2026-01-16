@@ -11,7 +11,7 @@ use crate::constants::{DB_BUFFER_SIZE, ORACLE_ARRAY_SIZE};
 use crate::{
     data_order::DataOrder,
     errors::ConnectorXError,
-    sources::{PartitionParser, Produce, Source, SourcePartition, RawSource},
+    sources::{PartitionParser, Produce, RawSource, Source, SourcePartition},
     sql::{count_query, limit1_query_oracle, CXQuery},
     utils::DummyBox,
 };
@@ -223,7 +223,12 @@ where
         let mut ret = vec![];
         for query in &self.queries {
             let conn = self.get_conn()?;
-            ret.push(OracleSourcePartition::new(conn, &query, &self.schema, self.array_size));
+            ret.push(OracleSourcePartition::new(
+                conn,
+                &query,
+                &self.schema,
+                self.array_size,
+            ));
         }
         ret
     }
@@ -238,20 +243,24 @@ struct StreamingSchema {
 impl RawSource for OracleSource {
     type Parser = OracleRawSourceParser;
 
-    fn execute_raw_query(&mut self, query: &str) 
-        -> Result<(Self::Parser, Vec<String>, Vec<OracleTypeSystem>), OracleSourceError> 
-    {
+    fn execute_raw_query(
+        &mut self,
+        query: &str,
+    ) -> Result<(Self::Parser, Vec<String>, Vec<OracleTypeSystem>), OracleSourceError> {
         // Create bounded channel for row streaming (provides backpressure)
-        let (row_sender, row_receiver): (SyncSender<oracle::Result<Row>>, Receiver<oracle::Result<Row>>) = 
-            sync_channel(RAW_STREAMING_BUFFER_SIZE);
-        
+        let (row_sender, row_receiver): (
+            SyncSender<oracle::Result<Row>>,
+            Receiver<oracle::Result<Row>>,
+        ) = sync_channel(RAW_STREAMING_BUFFER_SIZE);
+
         // Create channel for schema (one-shot style)
-        let (schema_sender, schema_receiver) = sync_channel::<Result<StreamingSchema, OracleSourceError>>(1);
-        
+        let (schema_sender, schema_receiver) =
+            sync_channel::<Result<StreamingSchema, OracleSourceError>>(1);
+
         // Get connection from pool for the background thread
         let conn = self.pool.get()?;
         let query_owned = query.to_string();
-        
+
         // Spawn background thread that owns Oracle resources and streams rows
         let thread_handle = thread::spawn(move || {
             // Execute query and stream results
@@ -259,20 +268,26 @@ impl RawSource for OracleSource {
                 let stmt = conn.statement(&query_owned).build()?;
                 let mut boxed_stmt = Box::new(stmt);
                 boxed_stmt.execute(&[])?;
-                
+
                 if let Some(mut cursor) = boxed_stmt.implicit_result()? {
                     let result_set = cursor.query()?;
-                    
+
                     // Extract schema from result set
-                    let col_info: Vec<_> = result_set.column_info()
+                    let col_info: Vec<_> = result_set
+                        .column_info()
                         .iter()
-                        .map(|c| (c.name().to_string(), OracleTypeSystem::from(c.oracle_type())))
+                        .map(|c| {
+                            (
+                                c.name().to_string(),
+                                OracleTypeSystem::from(c.oracle_type()),
+                            )
+                        })
                         .collect();
                     let (names, types): (Vec<_>, Vec<_>) = col_info.into_iter().unzip();
-                    
+
                     // Send schema back to main thread
                     let _ = schema_sender.send(Ok(StreamingSchema { names, types }));
-                    
+
                     // Stream rows through bounded channel
                     // The bounded channel provides backpressure - if consumer is slow,
                     // this will block until there's room in the buffer
@@ -284,28 +299,29 @@ impl RawSource for OracleSource {
                     }
                 } else {
                     let _ = schema_sender.send(Err(OracleSourceError::ConnectorXError(
-                        ConnectorXError::Other(anyhow::anyhow!("No implicit result"))
+                        ConnectorXError::Other(anyhow::anyhow!("No implicit result")),
                     )));
                 }
                 Ok(())
             })();
-            
+
             // If there was an error before we could send schema, send the error
             if let Err(e) = result {
                 let _ = schema_sender.send(Err(e));
             }
             // row_sender is dropped here, which signals end of stream to receiver
         });
-        
+
         // Wait for schema from background thread
-        let schema = schema_receiver.recv()
-            .map_err(|_| OracleSourceError::ConnectorXError(
-                ConnectorXError::Other(anyhow::anyhow!("Failed to receive schema from streaming thread"))
-            ))??;
-        
+        let schema = schema_receiver.recv().map_err(|_| {
+            OracleSourceError::ConnectorXError(ConnectorXError::Other(anyhow::anyhow!(
+                "Failed to receive schema from streaming thread"
+            )))
+        })??;
+
         let ncols = schema.names.len();
         let parser = OracleRawSourceParser::new_streaming(row_receiver, ncols, thread_handle);
-        
+
         Ok((parser, schema.names, schema.types))
     }
 }
@@ -364,7 +380,7 @@ impl<'a> PartitionParser<'a> for OracleRawSourceParser {
         if self.is_finished && self.rowbuf.is_empty() {
             return Ok((0, true));
         }
-        
+
         // Clear buffer
         self.rowbuf.clear();
         self.current_row = 0;

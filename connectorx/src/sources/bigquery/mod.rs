@@ -1168,16 +1168,25 @@ impl<'a> PartitionParser<'a> for BigQueryRawSourceParser {
 impl RawSource for BigQuerySource {
     type Parser = BigQueryRawSourceParser;
 
-    fn execute_raw_query(&mut self, _query: &str) 
-        -> Result<(Self::Parser, Vec<String>, Vec<Self::TypeSystem>), Self::Error> 
-    {
+    fn execute_raw_query(
+        &mut self,
+        _query: &str,
+    ) -> Result<(Self::Parser, Vec<String>, Vec<Self::TypeSystem>), Self::Error> {
         Err(BigQuerySourceError::ConnectorXError(
-            ConnectorXError::Other(anyhow!("Raw queries not supported for BigQuery"))
+            ConnectorXError::Other(anyhow!("Raw queries not supported for BigQuery")),
         ))
     }
 }
 
 impl_unimplemented_raw_produce!(
-    BigQueryRawSourceParser, BigQuerySourceError,
-    bool, i64, f64, String, NaiveDate, NaiveDateTime, NaiveTime, DateTime<Utc>
+    BigQueryRawSourceParser,
+    BigQuerySourceError,
+    bool,
+    i64,
+    f64,
+    String,
+    NaiveDate,
+    NaiveDateTime,
+    NaiveTime,
+    DateTime<Utc>
 );

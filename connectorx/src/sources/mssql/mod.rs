@@ -156,10 +156,10 @@ where
     #[throws(MsSQLSourceError)]
     fn fetch_metadata(&mut self) {
         assert!(!self.queries.is_empty());
-    
+
         let mut conn = self.rt.block_on(self.pool.get())?;
         let first_query = &self.queries[0];
-        
+
         // Use dm_exec_describe_first_result_set to get metadata without execution
         // let metadata_query = format!(
         //     "SELECT name, system_type_name, is_nullable \
@@ -171,27 +171,27 @@ where
             "SELECT COALESCE(name, 'column_' + CAST(column_ordinal AS VARCHAR)) as name, \
                     system_type_name, is_nullable \
              FROM sys.dm_exec_describe_first_result_set(N'{}', NULL, 0) \
-             WHERE is_hidden = 0",  // Filter out hidden columns
+             WHERE is_hidden = 0", // Filter out hidden columns
             first_query.as_str().replace("'", "''")
         );
-        
+
         let stream = self.rt.block_on(conn.query(metadata_query.as_str(), &[]))?;
         let rows = self.rt.block_on(stream.into_first_result())?;
-        
+
         let mut names = Vec::new();
         let mut types = Vec::new();
-        
+
         for row in rows {
             let name: &str = row.get(0).ok_or_else(|| anyhow!("Missing column name"))?;
             let type_name: &str = row.get(1).ok_or_else(|| anyhow!("Missing type name"))?;
             let is_nullable: bool = row.get(2).unwrap_or(true);
-            
+
             names.push(name.to_string());
             types.push(
                 MsSQLTypeSystem::from_system_type_name(type_name, is_nullable)
-                    .ok_or_else(|| anyhow!("Unknown SQL Server type: {}", type_name))?
+                    .ok_or_else(|| anyhow!("Unknown SQL Server type: {}", type_name))?,
             );
-        }     
+        }
         self.names = names;
         self.schema = types;
     }
@@ -467,19 +467,36 @@ impl<'a> PartitionParser<'a> for MsSQLRawSourceParser {
 impl RawSource for MsSQLSource {
     type Parser = MsSQLRawSourceParser;
 
-    fn execute_raw_query(&mut self, _query: &str) 
-        -> Result<(Self::Parser, Vec<String>, Vec<Self::TypeSystem>), Self::Error> 
-    {
-        Err(MsSQLSourceError::ConnectorXError(
-            ConnectorXError::Other(anyhow!("Raw queries not supported for MsSQL"))
-        ))
+    fn execute_raw_query(
+        &mut self,
+        _query: &str,
+    ) -> Result<(Self::Parser, Vec<String>, Vec<Self::TypeSystem>), Self::Error> {
+        Err(MsSQLSourceError::ConnectorXError(ConnectorXError::Other(
+            anyhow!("Raw queries not supported for MsSQL"),
+        )))
     }
 }
 
 impl_unimplemented_raw_produce!(
-    MsSQLRawSourceParser, MsSQLSourceError,
-    u8, i16, i32, i64, IntN, f32, f64, FloatN, bool, String, Vec<u8>,
-    Uuid, Decimal, NaiveDateTime, NaiveDate, NaiveTime, DateTime<Utc>
+    MsSQLRawSourceParser,
+    MsSQLSourceError,
+    u8,
+    i16,
+    i32,
+    i64,
+    IntN,
+    f32,
+    f64,
+    FloatN,
+    bool,
+    String,
+    Vec<u8>,
+    Uuid,
+    Decimal,
+    NaiveDateTime,
+    NaiveDate,
+    NaiveTime,
+    DateTime<Utc>
 );
 
 // Manual implementations for reference types (can't be done via macro)

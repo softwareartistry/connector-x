@@ -693,16 +693,28 @@ impl<'a> PartitionParser<'a> for TrinoRawSourceParser {
 impl RawSource for TrinoSource {
     type Parser = TrinoRawSourceParser;
 
-    fn execute_raw_query(&mut self, _query: &str) 
-        -> Result<(Self::Parser, Vec<String>, Vec<Self::TypeSystem>), Self::Error> 
-    {
-        Err(TrinoSourceError::ConnectorXError(
-            ConnectorXError::Other(anyhow::anyhow!("Raw queries not supported for Trino"))
-        ))
+    fn execute_raw_query(
+        &mut self,
+        _query: &str,
+    ) -> Result<(Self::Parser, Vec<String>, Vec<Self::TypeSystem>), Self::Error> {
+        Err(TrinoSourceError::ConnectorXError(ConnectorXError::Other(
+            anyhow::anyhow!("Raw queries not supported for Trino"),
+        )))
     }
 }
 
 impl_unimplemented_raw_produce!(
-    TrinoRawSourceParser, TrinoSourceError,
-    NaiveDate, NaiveTime, NaiveDateTime, bool, i32, i16, i8, f64, f32, String, char
+    TrinoRawSourceParser,
+    TrinoSourceError,
+    NaiveDate,
+    NaiveTime,
+    NaiveDateTime,
+    bool,
+    i32,
+    i16,
+    i8,
+    f64,
+    f32,
+    String,
+    char
 );

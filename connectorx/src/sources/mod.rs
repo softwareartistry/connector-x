@@ -57,11 +57,15 @@ pub trait Source {
 }
 
 pub trait RawSource: Source {
-    type Parser: PartitionParser<'static, TypeSystem = Self::TypeSystem, Error = Self::Error> + Send + Sync;
+    type Parser: PartitionParser<'static, TypeSystem = Self::TypeSystem, Error = Self::Error>
+        + Send
+        + Sync;
 
     // Return (Parser, Names, Types)
-    fn execute_raw_query(&mut self, query: &str) 
-        -> Result<(Self::Parser, Vec<String>, Vec<Self::TypeSystem>), Self::Error>;
+    fn execute_raw_query(
+        &mut self,
+        query: &str,
+    ) -> Result<(Self::Parser, Vec<String>, Vec<Self::TypeSystem>), Self::Error>;
 }
 
 /// In general, a `DataSource` abstracts the data source as a stream, which can produce
@@ -114,7 +118,7 @@ pub trait Produce<'r, T> {
 }
 
 /// Helper macro to generate `Produce` implementations for stub RawSource parsers.
-/// 
+///
 /// This macro is used by sources that don't support raw queries to generate
 /// stub `Produce` implementations that will never be called (since `execute_raw_query`
 /// returns an error). These implementations exist only to satisfy trait bounds

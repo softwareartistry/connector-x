@@ -138,7 +138,7 @@ impl MsSQLTypeSystem {
     pub fn from_system_type_name(type_name: &str, is_nullable: bool) -> Option<Self> {
         // Extract base type (e.g., "varchar(50)" -> "varchar")
         let base_type = type_name.split('(').next()?.to_lowercase();
-        
+
         match base_type.as_str() {
             "tinyint" => Some(MsSQLTypeSystem::Tinyint(is_nullable)),
             "smallint" => Some(MsSQLTypeSystem::Smallint(is_nullable)),

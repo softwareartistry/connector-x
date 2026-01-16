@@ -565,23 +565,56 @@ where
 {
     type Parser = MySQLRawSourceParser<P>;
 
-    fn execute_raw_query(&mut self, _query: &str) 
-        -> Result<(Self::Parser, Vec<String>, Vec<Self::TypeSystem>), Self::Error> 
-    {
-        Err(MySQLSourceError::ConnectorXError(
-            ConnectorXError::Other(anyhow!("Raw queries not supported for MySQL"))
-        ))
+    fn execute_raw_query(
+        &mut self,
+        _query: &str,
+    ) -> Result<(Self::Parser, Vec<String>, Vec<Self::TypeSystem>), Self::Error> {
+        Err(MySQLSourceError::ConnectorXError(ConnectorXError::Other(
+            anyhow!("Raw queries not supported for MySQL"),
+        )))
     }
 }
 
 impl_unimplemented_raw_produce!(
-    MySQLRawSourceParser<BinaryProtocol>, MySQLSourceError,
-    i8, i16, i32, i64, u8, u16, u32, u64, f32, f64,
-    NaiveDate, NaiveTime, NaiveDateTime, Decimal, String, Vec<u8>, Value
+    MySQLRawSourceParser<BinaryProtocol>,
+    MySQLSourceError,
+    i8,
+    i16,
+    i32,
+    i64,
+    u8,
+    u16,
+    u32,
+    u64,
+    f32,
+    f64,
+    NaiveDate,
+    NaiveTime,
+    NaiveDateTime,
+    Decimal,
+    String,
+    Vec<u8>,
+    Value
 );
 
 impl_unimplemented_raw_produce!(
-    MySQLRawSourceParser<TextProtocol>, MySQLSourceError,
-    i8, i16, i32, i64, u8, u16, u32, u64, f32, f64,
-    NaiveDate, NaiveTime, NaiveDateTime, Decimal, String, Vec<u8>, Value
+    MySQLRawSourceParser<TextProtocol>,
+    MySQLSourceError,
+    i8,
+    i16,
+    i32,
+    i64,
+    u8,
+    u16,
+    u32,
+    u64,
+    f32,
+    f64,
+    NaiveDate,
+    NaiveTime,
+    NaiveDateTime,
+    Decimal,
+    String,
+    Vec<u8>,
+    Value
 );

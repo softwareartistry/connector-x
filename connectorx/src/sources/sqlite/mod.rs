@@ -382,16 +382,27 @@ impl<'a> PartitionParser<'a> for SQLiteRawSourceParser {
 impl RawSource for SQLiteSource {
     type Parser = SQLiteRawSourceParser;
 
-    fn execute_raw_query(&mut self, _query: &str) 
-        -> Result<(Self::Parser, Vec<String>, Vec<Self::TypeSystem>), Self::Error> 
-    {
-        Err(SQLiteSourceError::ConnectorXError(
-            ConnectorXError::Other(anyhow!("Raw queries not supported for SQLite"))
-        ))
+    fn execute_raw_query(
+        &mut self,
+        _query: &str,
+    ) -> Result<(Self::Parser, Vec<String>, Vec<Self::TypeSystem>), Self::Error> {
+        Err(SQLiteSourceError::ConnectorXError(ConnectorXError::Other(
+            anyhow!("Raw queries not supported for SQLite"),
+        )))
     }
 }
 
 impl_unimplemented_raw_produce!(
-    SQLiteRawSourceParser, SQLiteSourceError,
-    bool, i64, i32, i16, f64, Box<str>, NaiveDate, NaiveTime, NaiveDateTime, Vec<u8>
+    SQLiteRawSourceParser,
+    SQLiteSourceError,
+    bool,
+    i64,
+    i32,
+    i16,
+    f64,
+    Box<str>,
+    NaiveDate,
+    NaiveTime,
+    NaiveDateTime,
+    Vec<u8>
 );

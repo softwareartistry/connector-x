@@ -18,7 +18,7 @@ use crate::destinations::arrowstream::ArrowDestinationError;
 // ============================================================================
 
 /// Error type for raw Arrow streaming operations.
-/// 
+///
 /// This error type is generic and can wrap errors from any source that implements
 /// `RawSource`. Source-specific errors are stored as boxed trait objects.
 #[derive(Debug)]
@@ -100,7 +100,7 @@ type RawProcessorFn<S, TP> = fn(
 
 /// Generic iterator over raw query results (PL/SQL blocks, stored procedures) as Arrow RecordBatches.
 ///
-/// This iterator executes a raw query and yields RecordBatches. It's designed for queries 
+/// This iterator executes a raw query and yields RecordBatches. It's designed for queries
 /// that return result sets via implicit cursors (e.g., `dbms_sql.return_result` in Oracle,
 /// or stored procedures in MSSQL).
 ///
@@ -165,10 +165,7 @@ where
     /// # Arguments
     /// * `source` - A source with a connection pool
     /// * `query` - The raw query (e.g., PL/SQL block, stored procedure call) to execute
-    pub fn new(
-        source: S,
-        query: &str,
-    ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+    pub fn new(source: S, query: &str) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         Self::new_with_batch_size(source, query, DEFAULT_BATCH_SIZE)
     }
 
@@ -238,7 +235,9 @@ where
     /// Call this before iterating to ensure data is ready.
     pub fn prepare(&mut self) -> Result<(), RawArrowError> {
         if self.pending_rows == 0 && !self.is_finished {
-            let (n, finished) = self.parser.fetch_next()
+            let (n, finished) = self
+                .parser
+                .fetch_next()
                 .map_err(|e| RawArrowError::Source(Box::new(e)))?;
             self.pending_rows = n;
             self.is_finished = finished && n == 0;
@@ -248,9 +247,10 @@ where
 
     /// Process pending rows through the writer using RawTransport processor functions.
     fn process_rows(&mut self, nrows: usize) -> Result<(), RawArrowError> {
-        let writer = self.writer.as_mut().ok_or_else(|| {
-            RawArrowError::Other("Writer already finalized".to_string())
-        })?;
+        let writer = self
+            .writer
+            .as_mut()
+            .ok_or_else(|| RawArrowError::Other("Writer already finalized".to_string()))?;
 
         for _ in 0..nrows {
             for processor in &self.processors {
@@ -353,7 +353,7 @@ where
 // ============================================================================
 
 /// Type alias for Oracle raw query iterator.
-/// 
+///
 /// This provides backwards compatibility and a convenient shorthand for Oracle users.
 #[cfg(all(feature = "src_oracle", feature = "dst_arrow"))]
 pub type OracleRawRecordBatchIterator = RawArrowBatchIterator<

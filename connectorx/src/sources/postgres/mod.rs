@@ -2132,11 +2132,12 @@ where
 {
     type Parser = PostgresRawSourceParserStub<P, C>;
 
-    fn execute_raw_query(&mut self, _query: &str) 
-        -> Result<(Self::Parser, Vec<String>, Vec<Self::TypeSystem>), Self::Error> 
-    {
+    fn execute_raw_query(
+        &mut self,
+        _query: &str,
+    ) -> Result<(Self::Parser, Vec<String>, Vec<Self::TypeSystem>), Self::Error> {
         Err(PostgresSourceError::ConnectorXError(
-            ConnectorXError::Other(anyhow!("Raw queries not supported for PostgreSQL"))
+            ConnectorXError::Other(anyhow!("Raw queries not supported for PostgreSQL")),
         ))
     }
 }

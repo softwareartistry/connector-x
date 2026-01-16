@@ -141,4 +141,3 @@ fn main() {
     println!("This is a reference implementation file.");
     println!("Copy the stream_raw_query method into your ConnectionSource.");
 }
-

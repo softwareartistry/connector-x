@@ -434,16 +434,22 @@ impl<'a> PartitionParser<'a> for CSVRawSourceParser {
 impl RawSource for CSVSource {
     type Parser = CSVRawSourceParser;
 
-    fn execute_raw_query(&mut self, _query: &str) 
-        -> Result<(Self::Parser, Vec<String>, Vec<Self::TypeSystem>), Self::Error> 
-    {
-        Err(CSVSourceError::ConnectorXError(
-            ConnectorXError::Other(anyhow!("Raw queries not supported for CSV"))
-        ))
+    fn execute_raw_query(
+        &mut self,
+        _query: &str,
+    ) -> Result<(Self::Parser, Vec<String>, Vec<Self::TypeSystem>), Self::Error> {
+        Err(CSVSourceError::ConnectorXError(ConnectorXError::Other(
+            anyhow!("Raw queries not supported for CSV"),
+        )))
     }
 }
 
 impl_unimplemented_raw_produce!(
-    CSVRawSourceParser, CSVSourceError,
-    i64, f64, bool, String, DateTime<Utc>
+    CSVRawSourceParser,
+    CSVSourceError,
+    i64,
+    f64,
+    bool,
+    String,
+    DateTime<Utc>
 );
