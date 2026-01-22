@@ -378,6 +378,10 @@ impl<'a> PartitionParser<'a> for OracleRawSourceParser {
 
     fn fetch_next(&mut self) -> Result<(usize, bool), Self::Error> {
         if self.is_finished && self.rowbuf.is_empty() {
+            // Query is finished - shrink buffer to release memory
+            if self.rowbuf.capacity() > 0 {
+                self.rowbuf = Vec::new();
+            }
             return Ok((0, true));
         }
 
@@ -396,6 +400,8 @@ impl<'a> PartitionParser<'a> for OracleRawSourceParser {
                 Err(_) => {
                     // Channel closed - no more data
                     self.is_finished = true;
+                    // Shrink buffer capacity when query completes to free memory
+                    self.rowbuf.shrink_to_fit();
                     break;
                 }
             }
@@ -584,6 +590,10 @@ impl<'a> PartitionParser<'a> for OracleTextSourceParser<'a> {
         if remaining_rows > 0 {
             return (remaining_rows, self.is_finished);
         } else if self.is_finished {
+            // Query is finished - shrink buffer to release memory
+            if self.rowbuf.capacity() > 0 {
+                self.rowbuf = Vec::new();
+            }
             return (0, self.is_finished);
         }
 
@@ -595,6 +605,8 @@ impl<'a> PartitionParser<'a> for OracleTextSourceParser<'a> {
                 self.rowbuf.push(item?);
             } else {
                 self.is_finished = true;
+                // Shrink buffer capacity when query completes to free memory
+                self.rowbuf.shrink_to_fit();
                 break;
             }
         }
