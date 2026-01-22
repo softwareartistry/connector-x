@@ -61,6 +61,7 @@ prusto = {version = "0.5", optional = true}
 serde = {version = "1", optional = true}
 cidr-02 = { version = "0.2", package = "cidr", optional = true }
 pgvector = { version = "0.4", features = [ "postgres", "halfvec"], optional = true }
+dhat = {version = "0.3", optional = true }
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -107,6 +108,7 @@ src_trino = ["prusto", "uuid", "urlencoding", "rust_decimal", "tokio", "num-trai
 federation = ["j4rs"]
 fed_exec = ["datafusion", "tokio"]
 integrated-auth-gssapi = ["tiberius/integrated-auth-gssapi"]
+heap_profiling = ["dhat"]
 
 [package.metadata.docs.rs]
 features = ["all"]

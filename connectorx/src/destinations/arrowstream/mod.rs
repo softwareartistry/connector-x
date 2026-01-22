@@ -8,7 +8,7 @@ pub mod typesystem;
 pub use self::errors::{ArrowDestinationError, Result};
 pub use self::typesystem::ArrowTypeSystem;
 use super::{Consume, Destination, DestinationPartition};
-use crate::constants::RECORD_BATCH_SIZE;
+use crate::constants::{ARROW_STREAM_CHANNEL_BUFFER_SIZE, RECORD_BATCH_SIZE};
 use crate::data_order::DataOrder;
 use crate::typesystem::{Realize, TypeAssoc, TypeSystem};
 use anyhow::anyhow;
@@ -20,7 +20,7 @@ use itertools::Itertools;
 use std::{
     any::Any,
     sync::{
-        mpsc::{channel, Receiver, Sender},
+        mpsc::{sync_channel, Receiver, SyncSender},
         Arc,
     },
 };
@@ -33,13 +33,13 @@ pub struct ArrowDestination {
     names: Vec<String>,
     arrow_schema: Arc<Schema>,
     batch_size: usize,
-    sender: Option<Sender<RecordBatch>>,
+    sender: Option<SyncSender<RecordBatch>>,
     receiver: Receiver<RecordBatch>,
 }
 
 impl Default for ArrowDestination {
     fn default() -> Self {
-        let (tx, rx) = channel();
+        let (tx, rx) = sync_channel(ARROW_STREAM_CHANNEL_BUFFER_SIZE);
         ArrowDestination {
             schema: vec![],
             names: vec![],
@@ -57,7 +57,7 @@ impl ArrowDestination {
     }
 
     pub fn new_with_batch_size(batch_size: usize) -> Self {
-        let (tx, rx) = channel();
+        let (tx, rx) = sync_channel(ARROW_STREAM_CHANNEL_BUFFER_SIZE);
         ArrowDestination {
             schema: vec![],
             names: vec![],
@@ -179,7 +179,8 @@ pub struct ArrowPartitionWriter {
     current_col: usize,
     arrow_schema: Arc<Schema>,
     batch_size: usize,
-    sender: Option<Sender<RecordBatch>>,
+    sender: Option<SyncSender<RecordBatch>>,
+    receiver_closed: bool,
 }
 
 // unsafe impl Sync for ArrowPartitionWriter {}
@@ -190,7 +191,7 @@ impl ArrowPartitionWriter {
         schema: Vec<ArrowTypeSystem>,
         arrow_schema: Arc<Schema>,
         batch_size: usize,
-        sender: Sender<RecordBatch>,
+        sender: SyncSender<RecordBatch>,
     ) -> Self {
         let mut pw = ArrowPartitionWriter {
             schema,
@@ -200,6 +201,7 @@ impl ArrowPartitionWriter {
             arrow_schema,
             batch_size,
             sender: Some(sender),
+            receiver_closed: false,
         };
         pw.allocate()?;
         pw
@@ -216,7 +218,7 @@ impl ArrowPartitionWriter {
     }
 
     #[throws(ArrowDestinationError)]
-    fn flush(&mut self) {
+    fn flush(&mut self) -> bool {
         let builders = self
             .builders
             .take()
@@ -227,10 +229,24 @@ impl ArrowPartitionWriter {
             .map(|(builder, &dt)| Realize::<FFinishBuilder>::realize(dt)?(builder))
             .collect::<std::result::Result<Vec<_>, crate::errors::ConnectorXError>>()?;
         let rb = RecordBatch::try_new(Arc::clone(&self.arrow_schema), columns)?;
-        self.sender.as_ref().and_then(|s| s.send(rb).ok());
+        
+        // Return true if batch was sent successfully, false if receiver is closed
+        let sent = self.sender.as_ref()
+            .map(|s| s.send(rb).is_ok())
+            .unwrap_or(false);
+        
+        if !sent {
+            self.receiver_closed = true;
+        }
 
         self.current_row = 0;
         self.current_col = 0;
+        sent
+    }
+    
+    /// Check if the receiver is still open (not dropped)
+    pub fn is_receiver_open(&self) -> bool {
+        !self.receiver_closed
     }
 }
 
@@ -241,7 +257,7 @@ impl<'a> DestinationPartition<'a> for ArrowPartitionWriter {
     #[throws(ArrowDestinationError)]
     fn finalize(&mut self) {
         if self.builders.is_some() {
-            self.flush()?;
+            let _ = self.flush()?; // Ignore receiver status during finalize
         }
         // need to release the sender so receiver knows when the stream is exhasted
         std::mem::drop(self.sender.take());
@@ -288,7 +304,11 @@ where
         if self.current_col == 0 {
             self.current_row += 1;
             if self.current_row >= self.batch_size {
-                self.flush()?;
+                let receiver_open = self.flush()?;
+                if !receiver_open {
+                    // Receiver closed, stop processing
+                    return;
+                }
                 self.allocate()?;
             }
         }

@@ -90,6 +90,12 @@ where
 
                     match dorder {
                         DataOrder::RowMajor => loop {
+                            // Check if receiver is still open before fetching more rows
+                            if !dst.is_receiver_open() {
+                                debug!("Receiver closed, stopping partition {} processing early", i);
+                                break;
+                            }
+                            
                             let (n, is_last) = parser.fetch_next()?;
                             dst.aquire_row(n)?;
                             for _ in 0..n {
@@ -101,11 +107,24 @@ where
                                     }
                                 }
                             }
+                            
+                            // Check again after processing batch
+                            if !dst.is_receiver_open() {
+                                debug!("Receiver closed after processing batch, stopping partition {} early", i);
+                                break;
+                            }
+                            
                             if is_last {
                                 break;
                             }
                         },
                         DataOrder::ColumnMajor => loop {
+                            // Check if receiver is still open before fetching more rows
+                            if !dst.is_receiver_open() {
+                                debug!("Receiver closed, stopping partition {} processing early", i);
+                                break;
+                            }
+                            
                             let (n, is_last) = parser.fetch_next()?;
                             dst.aquire_row(n)?;
                             #[allow(clippy::needless_range_loop)]
@@ -117,6 +136,13 @@ where
                                     }
                                 }
                             }
+                            
+                            // Check again after processing batch
+                            if !dst.is_receiver_open() {
+                                debug!("Receiver closed after processing batch, stopping partition {} early", i);
+                                break;
+                            }
+                            
                             if is_last {
                                 break;
                             }

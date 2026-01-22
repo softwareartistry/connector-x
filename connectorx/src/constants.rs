@@ -20,6 +20,9 @@ const KILO: usize = 1 << 10;
 #[cfg(feature = "dst_arrow")]
 pub const RECORD_BATCH_SIZE: usize = 64 * KILO;
 
+#[cfg(feature = "dst_arrow")]
+pub const ARROW_STREAM_CHANNEL_BUFFER_SIZE: usize = 4;
+
 #[cfg(any(
     feature = "src_postgres",
     feature = "src_mysql",
