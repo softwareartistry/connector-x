@@ -141,10 +141,6 @@
 //! For example, if you'd like to load data from Postgres to Arrow, you can enable `src_postgres` and `dst_arrow` in `Cargo.toml`.
 //! This will enable [`sources::postgres`], [`destinations::arrow`] and [`transports::PostgresArrowTransport`].
 
-#[cfg(feature = "heap_profiling")]
-#[global_allocator]
-static ALLOCATOR: dhat::Alloc = dhat::Alloc;
-
 pub mod typesystem;
 #[macro_use]
 mod macros;
